@@ -4,7 +4,7 @@ ZdcIOBufferTests holds unit tests for ZdcIOBuffer.
 Class {
 	#name : #ZdcIOBufferTests,
 	#superclass : #TestCase,
-	#category : #'Zodiac-Tests'
+	#category : 'Zodiac-Tests'
 }
 
 { #category : #testing }
@@ -151,6 +151,50 @@ ZdcIOBufferTests >> testNextPutAllStartingAt [
 ]
 
 { #category : #testing }
+ZdcIOBufferTests >> testNextPutAllStartingAtExpanded [
+	| ioBuffer |
+	ioBuffer := ZdcIOBuffer on: (String new: 12).
+	ioBuffer next: 4 putAll: 'abcd' startingAt: 1.
+	ioBuffer next: 4 putAll: 'xxxxabcdyyyy' startingAt: 5.
+	ioBuffer next: 4 putAll: '--abcd' startingAt: 3.
+	self assert: ioBuffer contents equals: 'abcdabcdabcd'.
+	ioBuffer next: 12 putAll: '0123456789AB' startingAt: 1.
+	self assert: ioBuffer contents equals: 'abcdabcdabcd0123456789AB'.
+	
+]
+
+{ #category : #testing }
+ZdcIOBufferTests >> testPutExpand [
+	| ioBuffer |
+	ioBuffer := ZdcIOBuffer onByteArrayOfSize: 8.
+	1 to: 8 do: [ :each | ioBuffer nextPut: each ].
+	ioBuffer nextPut: 9.
+	self assert: ioBuffer bufferSize equals: 16.
+
+]
+
+{ #category : #testing }
+ZdcIOBufferTests >> testPutExpandHitLimit [
+	| ioBuffer |
+	ioBuffer := ZdcIOBuffer onByteArrayOfSize: 8.
+	1 to: 8 do: [ :each | ioBuffer nextPut: each ].
+	ioBuffer maxBufferSize: 16.
+	9 to: 16 do: [ :each | ioBuffer nextPut: each ].	
+	self should: [ 	ioBuffer nextPut: 17 ] raise: Error
+
+]
+
+{ #category : #testing }
+ZdcIOBufferTests >> testPutHitLimit [
+	| ioBuffer |
+	ioBuffer := ZdcIOBuffer onByteArrayOfSize: 8.
+	1 to: 8 do: [ :each | ioBuffer nextPut: each ].
+	ioBuffer maxBufferSize: 8.
+	self should: [ 	ioBuffer nextPut: 9 ] raise: Error
+
+]
+
+{ #category : #testing }
 ZdcIOBufferTests >> testReadIntoStartingAtCount [
 	| data ioBuffer string |
 	data := 'abcdefghijkl'.
@@ -199,5 +243,26 @@ ZdcIOBufferTests >> testWriting [
 	self assert: ioBuffer availableForWriting equals: 4.
 	7 to: 10 do: [ :each | ioBuffer nextPut: each ].
 	self assert: ioBuffer isFull.
+	ioBuffer maxBufferSize: 10.
 	self should: [ ioBuffer nextPut: 1 ] raise: Error
+]
+
+{ #category : #testing }
+ZdcIOBufferTests >> testWritingExpanded [
+	| ioBuffer |
+	ioBuffer := ZdcIOBuffer on: (ByteArray new: 10).
+	self assert: ioBuffer isEmpty.
+	self assert: ioBuffer size isZero.
+	self assert: ioBuffer availableForWriting equals: 10.
+	1 to: 6 do: [ :each | ioBuffer nextPut: each ].
+	self assert: ioBuffer contents equals: #[1 2 3 4 5 6].
+	self assert: ioBuffer size equals: 6.
+	self assert: ioBuffer availableForWriting equals: 4.
+	7 to: 10 do: [ :each | ioBuffer nextPut: each ].
+	self assert: ioBuffer isFull.
+	ioBuffer nextPut: 11.
+	self assert: ioBuffer isFull not.
+	self assert: ioBuffer bufferSize equals: 20.
+	
+	
 ]

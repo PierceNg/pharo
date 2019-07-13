@@ -20,10 +20,16 @@ Class {
 	#instVars : [
 		'buffer',
 		'readPointer',
-		'writePointer'
+		'writePointer',
+		'maxBufferSize'
 	],
 	#category : #'Zodiac-Core'
 }
+
+{ #category : #accessing }
+ZdcIOBuffer class >> maxBufferSize [
+	^ 1048576
+]
 
 { #category : #'instance creation' }
 ZdcIOBuffer class >> on: sequenceableCollection [
@@ -58,7 +64,9 @@ ZdcIOBuffer >> advanceWritePointer: count [
 		ifTrue: [  
 			writePointer := writePointer + count ]
 		ifFalse: [
-			self bufferFullError ]  
+			self bufferMaybeFull ifFalse: [ 
+				"Buffer was expanded, so recursively retry."
+				^ self advanceWritePointer: count ]]  
 ]
 
 { #category : #accessing }
@@ -90,6 +98,23 @@ ZdcIOBuffer >> bufferEmptyError [
 { #category : #private }
 ZdcIOBuffer >> bufferFullError [
 	^ self error: 'Buffer full'
+]
+
+{ #category : #private }
+ZdcIOBuffer >> bufferMaybeFull [	
+	| newSize newBuffer |
+	
+	"Try doubling the buffer size until it exceeds the defined limit."
+	newSize := 2 * self bufferSize.
+	(newSize > self maxBufferSize) ifTrue: [ self bufferFullError ].
+	
+	newBuffer := ByteArray new: newSize.
+	buffer isString ifTrue: [ newBuffer := newBuffer asString ]. 
+	newBuffer replaceFrom: self contentsStart to: self contentsEnd with: buffer startingAt: 1.
+	writePointer := self bufferSize.
+	readPointer := 0.
+	buffer := newBuffer.
+	^ false "so caller can retry the operation that led here originally"
 ]
 
 { #category : #accessing }
@@ -157,7 +182,10 @@ ZdcIOBuffer >> contentsStart [
 ZdcIOBuffer >> freeSpaceEnd [
 	"Return the current valid free space end index into the buffer (inclusive)"
 	
-	self isFull ifTrue: [ self bufferFullError ]. 
+	self isFull ifTrue: [ 
+		self bufferMaybeFull ifFalse: [
+			"Buffer was expanded, so recursively retry."
+	 		^ self freeSpaceEnd ]]. 
 	^ buffer size
 ]
 
@@ -165,7 +193,10 @@ ZdcIOBuffer >> freeSpaceEnd [
 ZdcIOBuffer >> freeSpaceStart [
 	"Return the current valid free space start index into the buffer (inclusive)"
 	
-	self isFull ifTrue: [ self bufferFullError ]. 
+	self isFull ifTrue: [ 
+		self bufferMaybeFull ifFalse: [ 
+			"Buffer was expanded, so recursively retry."
+			^ self freeSpaceStart ]]. 
 	^ writePointer + 1
 ]
 
@@ -190,6 +221,16 @@ ZdcIOBuffer >> isFull [
 	^ self availableForWriting isZero
 ]
 
+{ #category : #accessing }
+ZdcIOBuffer >> maxBufferSize [
+	^ maxBufferSize ifNil: [ self class maxBufferSize ]
+]
+
+{ #category : #accessing }
+ZdcIOBuffer >> maxBufferSize: anObject [
+	maxBufferSize := anObject
+]
+
 { #category : #reading }
 ZdcIOBuffer >> next [
 	"Access the next readable element, fail is empty"
@@ -207,7 +248,10 @@ ZdcIOBuffer >> next: count putAll: collection startingAt: offset [
 	"Add count elements from collection starting at offset. Fail if there is not enough room"
 	
 	| writeOffset |
-	count > self availableForWriting ifTrue: [ self bufferFullError ].  
+	count > self availableForWriting ifTrue: [ 
+		self bufferMaybeFull ifFalse: [
+			"Buffer was expanded, so recursively retry."
+			^ self next: count putAll: collection startingAt: offset ]].  
 	writeOffset := self freeSpaceStart.
 	buffer 
 		replaceFrom: writeOffset 
@@ -226,7 +270,9 @@ ZdcIOBuffer >> nextPut: anObject [
 			writePointer := writePointer + 1 .
 			buffer at: writePointer put: anObject ]
 		ifFalse: [
-			self bufferFullError ].
+			self bufferMaybeFull ifFalse: [ 
+				"Buffer was expanded, so recursively retry."
+				^ self nextPut: anObject ]].
 	^ anObject
 
 ]

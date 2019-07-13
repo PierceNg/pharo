@@ -4,7 +4,7 @@ ZdcByteArrayManagerTests holds unit tests for ZdcByteArrayManager
 Class {
 	#name : #ZdcByteArrayManagerTests,
 	#superclass : #TestCase,
-	#category : #'Zodiac-Tests'
+	#category : 'Zodiac-Tests'
 }
 
 { #category : #testing }
