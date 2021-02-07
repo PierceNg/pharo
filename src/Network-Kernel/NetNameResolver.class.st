@@ -57,6 +57,19 @@ NetNameResolver class >> addressForName: hostName timeout: secs [
 ]
 
 { #category : #'address string utils' }
+NetNameResolver class >> addressFromSocketPath: aSocketPathString [ 
+	"Return the Unix domain socket address represented by the given path string."
+	"NetNameResolver addressFromSocketPath: '/tmp/myappsocket'"
+
+	| size sockaddr |	
+	self primGetAddressInfoHost: '' service: aSocketPathString flags: 0 family: 1 type: 0 protocol: 0.
+	size := self primGetAddressInfoSize.
+	sockaddr := SocketAddress new: size withAll: 0.
+	self primGetAddressInfoResult: sockaddr.
+	^ sockaddr
+]
+
+{ #category : #'address string utils' }
 NetNameResolver class >> addressFromString: addressString [ 
 	"Return the internet address represented by the given string. The string should contain four positive decimal integers delimited by periods, commas, or spaces, where each integer represents one address byte. Return nil if the string is not a host address in an acceptable format."
 	"NetNameResolver addressFromString: '1.2.3.4'"

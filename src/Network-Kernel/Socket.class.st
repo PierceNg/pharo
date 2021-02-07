@@ -23,6 +23,7 @@ Class {
 		'ThisEndClosed',
 		'UDPSocketType',
 		'Unconnected',
+		'UnixDomainSocketType',
 		'WaitingForConnection'
 	],
 	#category : #'Network-Kernel-Base'
@@ -61,6 +62,7 @@ Socket class >> initialize [
 	"Socket Types"
 	TCPSocketType := 0.
 	UDPSocketType := 1.
+	UnixDomainSocketType := 2.
 
 	"Socket Status Values"
 	InvalidSocket := -1.
@@ -189,6 +191,14 @@ Socket class >> newAcceptCheck [
 	] ifFalse: [
 		self inform: 'It appears that you DO NOT have support for the BSD style accept()'].
 	socket destroy
+]
+
+{ #category : #'instance creation' }
+Socket class >> newIPC [
+	"Create a socket and initialise it for Unix domain sockets aka IPC"
+	self initializeNetwork.
+	^[ super new initialize: TCPSocketType withDomain: 1 ]
+		repeatWithGCIf: [ :socket | socket isValid not ]
 ]
 
 { #category : #'instance creation' }
@@ -528,6 +538,18 @@ Socket >> connectNonBlockingTo: hostAddress port: port [
 ]
 
 { #category : #'connection open/close' }
+Socket >> connectTo: socketAddress [
+	"Initiate a connection to the given Unix domain socket.
+	Waits until the connection is established or time outs."
+	
+	| status |
+	status := self primSocketConnectionStatus: 	socketHandle.
+	(status = Unconnected)
+		ifFalse: [ InvalidSocketStatusException signal: 'Socket status must be Unconnected before opening a new connection' ].
+	self primSocket: socketHandle connectTo: socketAddress
+]
+
+{ #category : #'connection open/close' }
 Socket >> connectTo: hostAddress port: port [
 	"Initiate a connection to the given port at the given host address.
 	Waits until the connection is established or time outs."
@@ -663,6 +685,11 @@ foo waitForConnectionUntil: (Socket standardDeadline).
 
 { #category : #initialization }
 Socket >> initialize: socketType [
+	self initialize: socketType withDomain: 0 
+]
+
+{ #category : #initialization }
+Socket >> initialize: socketType withDomain: socketDomain [
 	"Initialize a new socket handle. If socket creation fails, socketHandle will be set to nil."
 
 	| semaIndex readSemaIndex writeSemaIndex |
@@ -674,7 +701,7 @@ Socket >> initialize: socketType [
 	readSemaIndex := Smalltalk registerExternalObject: readSemaphore.
 	writeSemaIndex := Smalltalk registerExternalObject: writeSemaphore.
 	socketHandle := self
-		primSocketCreateNetwork: 0
+		primSocketCreateNetwork: socketDomain
 		type: socketType
 		receiveBufferSize: 8000
 		sendBufSize: 8000
